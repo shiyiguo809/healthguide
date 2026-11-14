@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HealthGuide — Your Personal Health Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --teal: #0d9488;
+  --teal-dark: #0f766e;
+  --teal-pale: #f0fdfa;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --green: #22c55e;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --sidebar: 340px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 18px; } /* large base for elderly */
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+/* ── LAYOUT ── */
+.app-shell { display: flex; height: 100vh; overflow: hidden; }
+.sidebar { width: var(--sidebar); background: #0f172a; display: flex; flex-direction: column; flex-shrink: 0; }
+.main { flex: 1; overflow-y: auto; }
+
+/* ── SIDEBAR ── */
+.logo { padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.logo h1 { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: white; }
+.logo p { font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-top: 0.2rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.nav { padding: 1rem 0; flex: 1; }
+.nav-item { display: flex; align-items: center; gap: 0.8rem; padding: 0.85rem 1.5rem; color: rgba(255,255,255,0.55); cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; font-size: 0.9rem; font-weight: 500; }
+.nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+.nav-item.active { background: rgba(13,148,136,0.15); color: #2dd4bf; border-left-color: #2dd4bf; }
+.nav-icon { font-size: 1.1rem; width: 24px; text-align: center; }
+
+.upload-zone { margin: 1rem; border: 2px dashed rgba(255,255,255,0.15); border-radius: 12px; padding: 1.2rem; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+.upload-zone:hover { border-color: var(--teal); }
+.upload-zone p { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-top: 0.4rem; }
+.upload-zone .upload-icon { font-size: 1.8rem; }
+.upload-zone label { color: #2dd4bf; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+#file-input { display: none; }
+.demo-btn { width: calc(100% - 2rem); margin: 0 1rem 1rem; padding: 0.7rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: rgba(255,255,255,0.6); font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+.demo-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+
+/* ── CHAT PANEL ── */
+.chat-panel { border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; height: 420px; }
+.chat-header { padding: 0.9rem 1.2rem; display: flex; align-items: center; gap: 0.6rem; }
+.chat-header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.chat-header span { font-size: 0.82rem; color: rgba(255,255,255,0.7); font-weight: 600; }
+.chat-msgs { flex: 1; overflow-y: auto; padding: 0.5rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.msg { max-width: 90%; padding: 0.65rem 0.9rem; border-radius: 12px; font-size: 0.82rem; line-height: 1.5; }
+.msg.user { background: var(--teal); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+.msg.bot { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); align-self: flex-start; border-bottom-left-radius: 4px; }
+.chat-input-row { padding: 0.8rem; display: flex; gap: 0.5rem; }
+.chat-input-row input { flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 0.6rem 0.9rem; color: white; font-size: 0.82rem; outline: none; }
+.chat-input-row input::placeholder { color: rgba(255,255,255,0.3); }
+.chat-input-row input:focus { border-color: var(--teal); }
+.send-btn { background: var(--teal); border: none; border-radius: 8px; padding: 0 0.8rem; color: white; cursor: pointer; font-size: 1rem; transition: background 0.15s; }
+.send-btn:hover { background: var(--teal-dark); }
+
+/* ── MAIN CONTENT ── */
+.page { display: none; padding: 2rem; }
+.page.active { display: block; }
+
+.page-header { margin-bottom: 2rem; }
+.page-header h2 { font-family: 'Playfair Display', serif; font-size: 1.8rem; color: var(--text); }
+.page-header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.3rem; }
+
+/* ── METRIC CARDS ── */
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.metric-card { background: var(--card); border-radius: 16px; padding: 1.4rem; border: 1px solid var(--border); transition: transform 0.15s, box-shadow 0.15s; }
+.metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
+.metric-card.alert-danger { border-color: var(--red); background: #fff5f5; }
+.metric-card.alert-warning { border-color: var(--amber); background: #fffbeb; }
+.metric-card.alert-ok { border-color: #d1fae5; background: #f0fdf4; }
+.metric-icon { font-size: 1.6rem; margin-bottom: 0.6rem; }
+.metric-name { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.metric-value { font-size: 1.8rem; font-weight: 700; color: var(--text); line-height: 1.1; margin: 0.3rem 0; }
+.metric-unit { font-size: 0.8rem; color: var(--muted); }
+.metric-trend { font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 100px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; margin-top: 0.4rem; }
+.badge.danger { background: var(--red); color: white; }
+.badge.warning { background: var(--amber); color: white; }
+.badge.ok { background: var(--green); color: white; }
+
+/* ── ALERTS ── */
+.alerts-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+.alert-item { background: var(--card); border-radius: 12px; padding: 1.2rem 1.4rem; border: 1px solid var(--border); display: flex; gap: 1rem; align-items: flex-start; }
+.alert-item.danger { border-left: 4px solid var(--red); }
+.alert-item.warning { border-left: 4px solid var(--amber); }
+.alert-emoji { font-size: 1.4rem; flex-shrink: 0; }
+.alert-body .alert-title { font-weight: 700; font-size: 0.95rem; }
+.alert-body .alert-date { font-size: 0.75rem; color: var(--muted); }
+.alert-body .alert-msg { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+
+/* ── CHARTS ── */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+.chart-card { background: var(--card); border-radius: 16px; padding: 1.5rem; border: 1px solid var(--border); }
+.chart-card h3 { font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; }
+.chart-card canvas { max-height: 200px; }
+
+/* ── EMPTY STATE ── */
+.empty-state { text-align: center; padding: 5rem 2rem; }
+.empty-state .es-icon { font-size: 4rem; margin-bottom: 1rem; }
+.empty-state h3 { font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-bottom: 0.6rem; }
+.empty-state p { color: var(--muted); max-width: 420px; margin: 0 auto 2rem; font-size: 0.9rem; }
+.btn { display: inline-block; padding: 0.8rem 1.8rem; border-radius: 10px; font-weight: 600; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.15s; }
+.btn-primary { background: var(--teal); color: white; }
+.btn-primary:hover { background: var(--teal-dark); transform: translateY(-1px); }
+
+/* ── TIPS ── */
+.tips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.tip-card { background: var(--card); border-radius: 14px; padding: 1.4rem; border: 1px solid var(--border); }
+.tip-card .tip-icon { font-size: 1.8rem; margin-bottom: 0.8rem; }
+.tip-card h4 { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+.tip-card p { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 2rem; right: 2rem; background: #0f172a; color: white; padding: 0.9rem 1.4rem; border-radius: 10px; font-size: 0.85rem; transform: translateY(80px); opacity: 0; transition: all 0.3s; z-index: 999; max-width: 320px; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-left: 4px solid var(--green); }
+.toast.error { border-left: 4px solid var(--red); }
+
+/* ── UPLOAD PROGRESS ── */
+.upload-progress { margin: 0.5rem 1rem; display: none; }
+.progress-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 100px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--teal); border-radius: 100px; transition: width 0.3s; width: 0%; }
+
+@media (max-width: 900px) {
+  .app-shell { flex-direction: column; height: auto; }
+  .sidebar { width: 100%; height: auto; }
+  .chat-panel { height: 300px; }
+  .charts-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="logo">
+      <h1>🌿 HealthGuide</h1>
+      <p>AI-Powered Health Companion</p>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-item active" onclick="showPage('dashboard')">
+        <span class="nav-icon">📊</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="showPage('alerts')">
+        <span class="nav-icon">🔔</span> Alerts
+        <span id="alert-badge" style="margin-left:auto;background:var(--red);color:white;border-radius:100px;padding:0.1rem 0.5rem;font-size:0.65rem;display:none"></span>
+      </div>
+      <div class="nav-item" onclick="showPage('trends')">
+        <span class="nav-icon">📈</span> Trends
+      </div>
+      <div class="nav-item" onclick="showPage('tips')">
+        <span class="nav-icon">💡</span> Health Tips
+      </div>
+    </nav>
+
+    <!-- Upload -->
+    <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+      <div class="upload-icon">📁</div>
+      <label>Upload Apple Health Export</label>
+      <p>.zip or .xml from your iPhone</p>
+      <input type="file" id="file-input" accept=".zip,.xml" onchange="uploadFile(this)">
+    </div>
+    <div class="upload-progress" id="upload-progress">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+    <button class="demo-btn" onclick="loadDemo()">▶ Try with demo data</button>
+
+    <!-- AI Chat -->
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="dot"></div>
+        <span>AI Health Assistant</span>
+      </div>
+      <div class="chat-msgs" id="chat-msgs">
+        <div class="msg bot">👋 Hello! I'm your HealthGuide assistant. I can answer questions about your health data, explain readings, or give wellness tips. How can I help today?</div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Ask me anything…" onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="send-btn" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="page active">
+      <div style="padding:2rem 2rem 0">
+        <div class="page-header">
+          <h2>Your Health Overview</h2>
+          <p id="dashboard-subtitle">Upload your Apple Health data or try the demo to see your metrics.</p>
+        </div>
+      </div>
+      <div style="padding:0 2rem 2rem">
+        <div id="metrics-container">
+          <div class="empty-state">
+            <div class="es-icon">🍎</div>
+            <h3>Connect Your Health Data</h3>
+            <p>Export your data from the Health app on your iPhone and upload it here, or try the demo to explore the dashboard.</p>
+            <button class="btn btn-primary" onclick="loadDemo()">▶ Try Demo Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="page-alerts" class="page">
+      <div style="padding:2rem 2rem 0">
+        <div class="page-header">
+          <h2>Health Alerts</h2>
+          <p>Readings outside healthy ranges detected in your recent data.</p>
+        </div>
+      </div>
+      <div style="padding:0 2rem 2rem">
+        <div id="alerts-container">
+          <div class="empty-state">
+            <div class="es-icon">✅</div>
+            <h3>No Data Yet</h3>
+            <p>Upload your Apple Health data to see personalized alerts.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trends -->
+    <div id="page-trends" class="page">
+      <div style="padding:2rem 2rem 0">
+        <div class="page-header">
+          <h2>Health Trends</h2>
+          <p>Your metrics over the past 30 days.</p>
+        </div>
+      </div>
+      <div style="padding:0 2rem 2rem">
+        <div id="charts-container">
+          <div class="empty-state">
+            <div class="es-icon">📈</div>
+            <h3>No Data Yet</h3>
+            <p>Upload your Apple Health data to see trend charts.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div id="page-tips" class="page">
+      <div style="padding:2rem">
+        <div class="page-header">
+          <h2>Healthy Living Tips</h2>
+          <p>Practical advice for staying healthy and active.</p>
+        </div>
+        <div class="tips-grid">
+          <div class="tip-card"><div class="tip-icon">🚶</div><h4>Stay Active Daily</h4><p>Aim for at least 30 minutes of gentle movement each day. Even a slow walk helps heart health, balance, and mood.</p></div>
+          <div class="tip-card"><div class="tip-icon">💧</div><h4>Stay Hydrated</h4><p>Drink 6–8 glasses of water daily. Older adults often feel less thirsty, but hydration is critical for all body functions.</p></div>
+          <div class="tip-card"><div class="tip-icon">😴</div><h4>Prioritize Sleep</h4><p>Aim for 7–9 hours per night. Good sleep reduces fall risk, supports memory, and keeps your immune system strong.</p></div>
+          <div class="tip-card"><div class="tip-icon">🥗</div><h4>Balanced Nutrition</h4><p>Include fruits, vegetables, whole grains, and lean proteins. Limit salt and sugar to protect heart and kidney health.</p></div>
+          <div class="tip-card"><div class="tip-icon">🩺</div><h4>Regular Check-ups</h4><p>See your doctor at least once a year. Early detection of changes in blood pressure, cholesterol, and blood sugar saves lives.</p></div>
+          <div class="tip-card"><div class="tip-icon">🧠</div><h4>Mental Wellness</h4><p>Stay socially connected. Loneliness is as harmful as smoking. Call a friend, join a club, or talk to your AI assistant!</p></div>
+          <div class="tip-card"><div class="tip-icon">🫁</div><h4>Breathing Exercises</h4><p>Practice slow, deep breathing for 5 minutes each morning. It lowers blood pressure and reduces anxiety naturally.</p></div>
+          <div class="tip-card"><div class="tip-icon">⚖️</div><h4>Healthy Weight</h4><p>Maintaining a stable, healthy weight reduces joint pain and lowers risk of diabetes and heart disease.</p></div>
+          <div class="tip-card"><div class="tip-icon">🌞</div><h4>Vitamin D</h4><p>Get 15–20 minutes of sunlight or take a Vitamin D supplement. It supports bone strength and immune health.</p></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let healthData = {};
+let alerts = [];
+let thresholds = {};
+let chatHistory = [];
+let charts = {};
+
+// ── NAV ───────────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ── UPLOAD ────────────────────────────────────────────────────────────────
+async function uploadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const prog = document.getElementById('upload-progress');
+  const fill = document.getElementById('progress-fill');
+  prog.style.display = 'block';
+  fill.style.width = '30%';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    fill.style.width = '60%';
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    fill.style.width = '90%';
+    const data = await res.json();
+    if (data.error) { toast('❌ ' + data.error, 'error'); return; }
+    fill.style.width = '100%';
+    toast(`✅ Loaded ${data.days} days of data · ${data.alerts} alerts found`);
+    setTimeout(() => { prog.style.display = 'none'; fill.style.width = '0%'; }, 800);
+    await loadHealthData();
+  } catch (e) {
+    toast('❌ Upload failed: ' + e.message, 'error');
+    prog.style.display = 'none';
+  }
+}
+
+async function loadDemo() {
+  toast('⏳ Loading demo data…');
+  const res = await fetch('/api/demo', { method: 'POST' });
+  const data = await res.json();
+  toast(`✅ Demo loaded · ${data.days} days · ${data.alerts} alerts`);
+  await loadHealthData();
+}
+
+// ── LOAD & RENDER ─────────────────────────────────────────────────────────
+async function loadHealthData() {
+  const res = await fetch('/api/health-data');
+  const json = await res.json();
+  healthData = json.data;
+  alerts = json.alerts;
+  thresholds = json.thresholds;
+
+  renderDashboard();
+  renderAlerts();
+  renderCharts();
+  updateAlertBadge();
+}
+
+function getLatest(mkey) {
+  const dates = Object.keys(healthData).sort();
+  for (let i = dates.length - 1; i >= 0; i--) {
+    if (healthData[dates[i]][mkey] !== undefined) return healthData[dates[i]][mkey];
+  }
+  return null;
+}
+
+function getLast7Avg(mkey) {
+  const dates = Object.keys(healthData).sort().slice(-7);
+  const vals = dates.map(d => healthData[d]?.[mkey]).filter(v => v !== undefined);
+  if (!vals.length) return null;
+  return (vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(1);
+}
+
+function alertClass(mkey, val) {
+  if (val === null) return '';
+  const t = thresholds[mkey];
+  if (!t) return '';
+  if ((t.low !== undefined && t.low !== null && val < t.low) ||
+      (t.high !== undefined && t.high !== null && val > t.high)) {
+    // Danger if critical
+    if (mkey.includes('OxygenSaturation') && val < 92) return 'alert-danger';
+    if (mkey.includes('HeartRate') && (val < 45 || val > 110)) return 'alert-danger';
+    if (mkey.includes('BloodPressureSystolic') && val > 160) return 'alert-danger';
+    return 'alert-warning';
+  }
+  return 'alert-ok';
+}
+
+function renderDashboard() {
+  const container = document.getElementById('metrics-container');
+  const keys = Object.keys(thresholds);
+  const cards = keys.map(mkey => {
+    const val = getLatest(mkey);
+    if (val === null) return '';
+    const t = thresholds[mkey];
+    const cls = alertClass(mkey, val);
+    const avg7 = getLast7Avg(mkey);
+    let badgeHtml = '';
+    if (cls === 'alert-danger') badgeHtml = '<span class="badge danger">⚠ Alert</span>';
+    else if (cls === 'alert-warning') badgeHtml = '<span class="badge warning">Monitor</span>';
+    else if (cls === 'alert-ok') badgeHtml = '<span class="badge ok">Normal</span>';
+
+    return `
+      <div class="metric-card ${cls}">
+        <div class="metric-icon">${t.icon}</div>
+        <div class="metric-name">${t.name}</div>
+        <div class="metric-value">${val} <span class="metric-unit">${t.unit}</span></div>
+        <div class="metric-trend">7-day avg: ${avg7 ?? '—'}</div>
+        ${badgeHtml}
+      </div>`;
+  }).join('');
+
+  if (!cards.trim()) {
+    container.innerHTML = `<div class="empty-state"><div class="es-icon">🍎</div><h3>No Data</h3><p>Upload your Apple Health export or try the demo.</p></div>`;
+    return;
+  }
+
+  document.getElementById('dashboard-subtitle').textContent = `Last updated: ${Object.keys(healthData).sort().at(-1) ?? '—'} · ${Object.keys(healthData).length} days of data`;
+  container.innerHTML = `<div class="metrics-grid">${cards}</div>`;
+}
+
+function renderAlerts() {
+  const container = document.getElementById('alerts-container');
+  if (!alerts.length) {
+    container.innerHTML = `<div class="empty-state"><div class="es-icon">✅</div><h3>All Clear!</h3><p>No concerning readings found in your recent data.</p></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="alerts-list">` + alerts.map(a => `
+    <div class="alert-item ${a.severity}">
+      <div class="alert-emoji">${a.icon}</div>
+      <div class="alert-body">
+        <div class="alert-title">${a.metric} — ${a.value}</div>
+        <div class="alert-date">${a.date}</div>
+        <div class="alert-msg">${a.message}</div>
+      </div>
+    </div>`).join('') + `</div>`;
+}
+
+function updateAlertBadge() {
+  const badge = document.getElementById('alert-badge');
+  const danger = alerts.filter(a => a.severity === 'danger').length;
+  if (danger > 0) {
+    badge.textContent = danger;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderCharts() {
+  const container = document.getElementById('charts-container');
+  const dates = Object.keys(healthData).sort().slice(-30);
+  if (!dates.length) return;
+
+  // Destroy old charts
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const chartDefs = [
+    { key: 'HKQuantityTypeIdentifierHeartRate', label: 'Heart Rate (bpm)', color: '#ef4444' },
+    { key: 'HKQuantityTypeIdentifierStepCount', label: 'Daily Steps', color: '#0d9488' },
+    { key: 'HKQuantityTypeIdentifierOxygenSaturation', label: 'Blood Oxygen (%)', color: '#3b82f6' },
+    { key: 'HKCategoryTypeIdentifierSleepAnalysis', label: 'Sleep (hrs)', color: '#8b5cf6' },
+    { key: 'HKQuantityTypeIdentifierBloodPressureSystolic', label: 'Systolic BP (mmHg)', color: '#f59e0b' },
+    { key: 'HKQuantityTypeIdentifierActiveEnergyBurned', label: 'Active Calories', color: '#22c55e' },
+  ];
+
+  const available = chartDefs.filter(c => dates.some(d => healthData[d]?.[c.key] !== undefined));
+  if (!available.length) return;
+
+  const html = `<div class="charts-grid">` +
+    available.map(c => `<div class="chart-card"><h3>${c.label}</h3><canvas id="chart-${c.key}"></canvas></div>`).join('') +
+    `</div>`;
+  container.innerHTML = html;
+
+  available.forEach(c => {
+    const vals = dates.map(d => healthData[d]?.[c.key] ?? null);
+    const labels = dates.map(d => d.slice(5)); // MM-DD
+    const ctx = document.getElementById('chart-' + c.key).getContext('2d');
+    charts[c.key] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: vals,
+          borderColor: c.color,
+          backgroundColor: c.color + '18',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          borderWidth: 2,
+          spanGaps: true,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8, font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { font: { size: 11 } }, grid: { color: '#f1f5f9' } }
+        }
+      }
+    });
+  });
+}
+
+// ── CHAT ──────────────────────────────────────────────────────────────────
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  appendMsg('user', msg);
+  chatHistory.push({ role: 'user', content: msg });
+
+  const typingEl = appendMsg('bot', '…');
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: chatHistory.slice(-10) })
+    });
+    const data = await res.json();
+    typingEl.textContent = data.reply;
+    chatHistory.push({ role: 'assistant', content: data.reply });
+  } catch (e) {
+    typingEl.textContent = '❌ Could not reach AI. Check your connection.';
+  }
+}
+
+function appendMsg(role, text) {
+  const container = document.getElementById('chat-msgs');
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.textContent = text;
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+  return el;
+}
+
+// Quick suggestion chips
+document.getElementById('chat-input').addEventListener('focus', () => {});
+</script>
+</body>
+</html>
